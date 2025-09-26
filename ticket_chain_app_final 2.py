@@ -2,7 +2,6 @@ import streamlit as st
 import hashlib
 import json
 import time
-import uuid
 from typing import List, Dict, Any
 
 # -----------------------
@@ -11,77 +10,55 @@ from typing import List, Dict, Any
 class Blockchain:
     def __init__(self):
         self.chain: List[Dict[str, Any]] = []
-        self.pending_txs: List[Dict[str, Any]] = []
-        self.tickets: Dict[str, int] = {}
-        self.event_seat_index: Dict[str, str] = {}
-        self.new_block(proof=100, previous_hash='1')
+        self.pending_transactions: List[Dict[str, Any]] = []
+        self.tickets: Dict[str, int] = {}  # ticket_id -> block index
+        # Genesis block
+        self.new_block(proof=100, previous_hash="1")
 
     def new_block(self, proof: int, previous_hash: str = None) -> Dict[str, Any]:
         block = {
             'index': len(self.chain) + 1,
             'timestamp': time.time(),
-            'transactions': self.pending_txs.copy(),
+            'transactions': self.pending_transactions,
             'proof': proof,
-            'previous_hash': previous_hash or (self.hash(self.chain[-1]) if self.chain else '1')
+            'previous_hash': previous_hash or self.hash(self.chain[-1]),
         }
-
-        for tx in block['transactions']:
-            tid = tx.get('ticket_id')
-            if tid:
-                self.tickets[tid] = block['index']
-                key = self._event_seat_key(tx['movie_name'], tx.get('seat'))
-                if key:
-                    self.event_seat_index[key] = tid
-
-        self.pending_txs = []
+        for tx in self.pending_transactions:
+            self.tickets[tx['ticket_id']] = block['index']
+        self.pending_transactions = []
         self.chain.append(block)
         return block
 
-    def new_transaction(self, buyer_name: str, buyer_email: str, movie_name: str, seat: str = None,
-                        no_of_seats: int = 1, price: float = 0.0, payment_mode: str = 'NA') -> Dict[str, Any]:
-        if seat:
-            key = self._event_seat_key(movie_name, seat)
-            if key in self.event_seat_index:
-                raise ValueError(f"Seat {seat} for movie '{movie_name}' is already sold")
+    def new_transaction(self, buyer: str, movie: str, date: str, time_slot: str,
+                        seat_no: str, num_seats: int, payment_mode: str,
+                        card_number: str, exp_date: str, cvv: str) -> str:
+        ticket_id = hashlib.sha256(
+            f"{buyer}{movie}{date}{time_slot}{seat_no}{num_seats}{payment_mode}{time.time()}".encode()
+        ).hexdigest()
 
-        raw = f"{buyer_name}|{buyer_email}|{movie_name}|{seat}|{no_of_seats}|{price}|{payment_mode}|{time.time()}|{uuid.uuid4()}"
-        ticket_id = hashlib.sha256(raw.encode()).hexdigest()
-
-        tx = {
-            'buyer_name': buyer_name,
-            'buyer_email': buyer_email,
-            'movie_name': movie_name,
-            'seat': seat,
-            'no_of_seats': no_of_seats,
-            'price': price,
+        self.pending_transactions.append({
+            'buyer': buyer,
+            'movie': movie,
+            'date': date,
+            'time_slot': time_slot,
+            'seat_no': seat_no,
+            'num_seats': num_seats,
             'payment_mode': payment_mode,
-            'timestamp': time.time(),
-            'ticket_id': ticket_id
-        }
-
-        self.pending_txs.append(tx)
-        return tx
+            'card_number': card_number[-4:],  # store only last 4 digits
+            'exp_date': exp_date,
+            'cvv': "***",  # never store real cvv
+            'ticket_id': ticket_id,
+            'timestamp': time.time()
+        })
+        return ticket_id
 
     @staticmethod
     def hash(block: Dict[str, Any]) -> str:
         block_string = json.dumps(block, sort_keys=True).encode()
         return hashlib.sha256(block_string).hexdigest()
 
-    @property
     def last_block(self) -> Dict[str, Any]:
         return self.chain[-1]
-
-    def proof_of_work(self, last_proof: int) -> int:
-        proof = 0
-        while not self._valid_proof(last_proof, proof):
-            proof += 1
-        return proof
-
-    @staticmethod
-    def _valid_proof(last_proof: int, proof: int) -> bool:
-        guess = f"{last_proof}{proof}".encode()
-        guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:4] == "0000"
 
     def verify_ticket(self, ticket_id: str) -> Dict[str, Any]:
         idx = self.tickets.get(ticket_id)
@@ -99,101 +76,92 @@ class Blockchain:
                 }
         return {}
 
-    def _event_seat_key(self, movie_name: str, seat: str) -> str:
-        if not seat:
-            return ''
-        return f"{movie_name.lower()}::seat::{seat.lower()}"
-
-    def get_chain(self) -> Dict[str, Any]:
-        return {'length': len(self.chain), 'chain': self.chain}
-
 # -----------------------
-# Streamlit UI
+# Streamlit App
 # -----------------------
-st.set_page_config(page_title='Blockchain Ticketing Demo', layout='wide')
-st.title('🎬 Blockchain-based Movie Ticketing System')
+st.set_page_config(page_title="Blockchain Movie Ticketing", layout="centered")
+st.title("🎬 Blockchain-based Movie Ticketing System")
 
 if 'blockchain' not in st.session_state:
-    st.session_state['blockchain'] = Blockchain()
+    st.session_state.blockchain = Blockchain()
 
-blockchain: Blockchain = st.session_state['blockchain']
+if 'step' not in st.session_state:
+    st.session_state.step = 1
 
-col1, col2 = st.columns([2, 1])
+# Step 1: Select Movie
+if st.session_state.step == 1:
+    st.subheader("Step 1: Select a Movie")
+    movies = ["Inception", "Interstellar", "Avengers: Endgame", "The Dark Knight", "Titanic"]
+    movie_choice = st.selectbox("Choose a movie:", movies)
+    buyer_name = st.text_input("Enter your name:")
+    if st.button("Next") and buyer_name and movie_choice:
+        st.session_state.movie = movie_choice
+        st.session_state.buyer = buyer_name
+        st.session_state.step = 2
+        st.rerun()
 
-with col1:
-    st.header('Buy Movie Ticket')
-    with st.form('buy_ticket_form'):
-        buyer_name = st.text_input('Buyer Name')
-        buyer_email = st.text_input('Buyer Email')
-        movie_name = st.text_input('Movie Name')
-        seat = st.text_input('Seat Number')
-        no_of_seats = st.number_input('Number of Seats', min_value=1, value=1)
-        price = st.number_input('Total Price (INR)', min_value=0.0, value=500.0)
-        payment_mode = st.selectbox('Mode of Payment', ['Cash', 'Credit Card', 'UPI', 'Net Banking'])
-        submitted = st.form_submit_button('Purchase Ticket')
+# Step 2: Date and Time
+elif st.session_state.step == 2:
+    st.subheader("Step 2: Select Date and Time")
+    date = st.date_input("Select date:")
+    time_slot = st.selectbox("Select showtime:", ["12:00 PM", "3:00 PM", "6:00 PM", "9:00 PM"])
+    num_seats = st.number_input("Number of Seats:", min_value=1, max_value=10, step=1)
+    if st.button("Next"):
+        st.session_state.date = str(date)
+        st.session_state.time_slot = time_slot
+        st.session_state.num_seats = num_seats
+        st.session_state.step = 3
+        st.rerun()
 
-        if submitted:
-            try:
-                tx = blockchain.new_transaction(
-                    buyer_name=buyer_name or 'Anonymous',
-                    buyer_email=buyer_email or 'anonymous@example.com',
-                    movie_name=movie_name,
-                    seat=seat or None,
-                    no_of_seats=no_of_seats,
-                    price=float(price),
-                    payment_mode=payment_mode
-                )
+# Step 3: Seat Selection
+elif st.session_state.step == 3:
+    st.subheader("Step 3: Choose Seats")
+    seat_no = st.text_input("Enter seat numbers (e.g., A1,A2):")
+    if st.button("Next") and seat_no:
+        st.session_state.seat_no = seat_no
+        st.session_state.step = 4
+        st.rerun()
 
-                last_proof = blockchain.last_block['proof']
-                with st.spinner('Mining block...'):
-                    new_proof = blockchain.proof_of_work(last_proof)
-                    blockchain.new_block(proof=new_proof)
+# Step 4: Payment
+elif st.session_state.step == 4:
+    st.subheader("Step 4: Payment")
+    payment_mode = st.selectbox("Select Payment Mode:", ["Credit Card", "Debit Card"])
+    card_number = st.text_input("Card Number:")
+    exp_date = st.text_input("Expiry Date (MM/YY):")
+    cvv = st.text_input("CVV:", type="password")
 
-                st.success('✅ Ticket purchased!')
-                st.write('**Ticket ID (keep it safe for verification):**')
-                st.code(tx['ticket_id'])
-                st.json(tx)
+    if st.button("Pay & Confirm") and card_number and exp_date and cvv:
+        blockchain: Blockchain = st.session_state.blockchain
+        ticket_id = blockchain.new_transaction(
+            buyer=st.session_state.buyer,
+            movie=st.session_state.movie,
+            date=st.session_state.date,
+            time_slot=st.session_state.time_slot,
+            seat_no=st.session_state.seat_no,
+            num_seats=st.session_state.num_seats,
+            payment_mode=payment_mode,
+            card_number=card_number,
+            exp_date=exp_date,
+            cvv=cvv
+        )
+        blockchain.new_block(proof=123, previous_hash=blockchain.hash(blockchain.last_block()))
+        st.session_state.ticket_id = ticket_id
+        st.session_state.step = 5
+        st.rerun()
 
-            except ValueError as e:
-                st.error(str(e))
-
-    st.markdown('---')
-    st.header('Verify Ticket')
-    ticket_input = st.text_input('Enter Ticket ID to verify')
-    if st.button('Verify'):
-        if not ticket_input.strip():
-            st.warning('Please enter a Ticket ID.')
-        else:
-            result = blockchain.verify_ticket(ticket_input.strip())
-            if result:
-                st.success('✅ Valid ticket')
-                st.json(result['transaction'])
-                st.write(f"Block index: {result['block_index']}")
-                st.write(f"Block hash: {result['block_hash']}")
-                st.write(f"Recorded: {time.ctime(result['block_timestamp'])}")
-            else:
-                st.error('❌ Ticket not found or invalid')
-
-with col2:
-    st.header('Blockchain Ledger')
-    info = blockchain.get_chain()
-    st.metric('Blocks in chain', info['length'])
-
-    rows = []
-    for b in info['chain']:
-        rows.append({
-            'index': b['index'],
-            'timestamp': time.ctime(b['timestamp']),
-            'transactions': len(b['transactions']),
-            'proof': b['proof'],
-            'previous_hash': b['previous_hash'][:12] + '...' if b['previous_hash'] else ''
-        })
-    st.table(rows)
-
-    st.markdown('Expand chain:')
-    for b in info['chain']:
-        with st.expander(f"Block {b['index']} - {time.ctime(b['timestamp'])}"):
-            st.code(f"Block hash: {blockchain.hash(b)}")
-            st.code(f"Previous hash: {b['previous_hash']}")
-            st.write('Proof:', b['proof'])
-            st.json(b['transactions'])
+# Step 5: Ticket Verification Slip
+elif st.session_state.step == 5:
+    st.success("✅ Payment Successful! Here is your ticket slip:")
+    ticket_data = st.session_state.blockchain.verify_ticket(st.session_state.ticket_id)
+    if ticket_data:
+        tx = ticket_data['transaction']
+        st.write(f"🎟 **Ticket ID:** {tx['ticket_id']}")
+        st.write(f"👤 **Buyer:** {tx['buyer']}")
+        st.write(f"🎬 **Movie:** {tx['movie']}")
+        st.write(f"📅 **Date:** {tx['date']}")
+        st.write(f"🕒 **Time:** {tx['time_slot']}")
+        st.write(f"💺 **Seats:** {tx['seat_no']} (x{tx['num_seats']})")
+        st.write(f"💳 **Payment Mode:** {tx['payment_mode']} (Card ****{tx['card_number']})")
+    if st.button("Book Another Ticket"):
+        st.session_state.step = 1
+        st.rerun()
