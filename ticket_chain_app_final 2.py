@@ -11,8 +11,8 @@ class Blockchain:
     def __init__(self):
         self.chain: List[Dict[str, Any]] = []
         self.pending_transactions: List[Dict[str, Any]] = []
-        self.tickets: Dict[str, int] = {}  # ticket_id -> block index
-        # Genesis block
+        self.tickets: Dict[str, int] = {}
+        self.booked_seats: set = set()  # Track booked seats
         self.new_block(proof=100, previous_hash="1")
 
     def new_block(self, proof: int, previous_hash: str = None) -> Dict[str, Any]:
@@ -25,12 +25,14 @@ class Blockchain:
         }
         for tx in self.pending_transactions:
             self.tickets[tx['ticket_id']] = block['index']
+            for s in tx['seat_no']:
+                self.booked_seats.add(s)
         self.pending_transactions = []
         self.chain.append(block)
         return block
 
     def new_transaction(self, buyer: str, movie: str, date: str, time_slot: str,
-                        seat_no: str, num_seats: int, payment_mode: str,
+                        seat_no: List[str], num_seats: int, payment_mode: str,
                         card_number: str, exp_date: str, cvv: str) -> str:
         ticket_id = hashlib.sha256(
             f"{buyer}{movie}{date}{time_slot}{seat_no}{num_seats}{payment_mode}{time.time()}".encode()
@@ -44,9 +46,9 @@ class Blockchain:
             'seat_no': seat_no,
             'num_seats': num_seats,
             'payment_mode': payment_mode,
-            'card_number': card_number[-4:],  # store only last 4 digits
+            'card_number': card_number[-4:],  # store last 4 digits only
             'exp_date': exp_date,
-            'cvv': "***",  # never store real cvv
+            'cvv': "***",
             'ticket_id': ticket_id,
             'timestamp': time.time()
         })
@@ -54,8 +56,7 @@ class Blockchain:
 
     @staticmethod
     def hash(block: Dict[str, Any]) -> str:
-        block_string = json.dumps(block, sort_keys=True).encode()
-        return hashlib.sha256(block_string).hexdigest()
+        return hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest()
 
     def last_block(self) -> Dict[str, Any]:
         return self.chain[-1]
@@ -84,7 +85,6 @@ st.title("🎬 Blockchain-based Movie Ticketing System")
 
 if 'blockchain' not in st.session_state:
     st.session_state.blockchain = Blockchain()
-
 if 'step' not in st.session_state:
     st.session_state.step = 1
 
@@ -105,20 +105,36 @@ elif st.session_state.step == 2:
     st.subheader("Step 2: Select Date and Time")
     date = st.date_input("Select date:")
     time_slot = st.selectbox("Select showtime:", ["12:00 PM", "3:00 PM", "6:00 PM", "9:00 PM"])
-    num_seats = st.number_input("Number of Seats:", min_value=1, max_value=10, step=1)
     if st.button("Next"):
         st.session_state.date = str(date)
         st.session_state.time_slot = time_slot
-        st.session_state.num_seats = num_seats
         st.session_state.step = 3
         st.rerun()
 
 # Step 3: Seat Selection
 elif st.session_state.step == 3:
-    st.subheader("Step 3: Choose Seats")
-    seat_no = st.text_input("Enter seat numbers (e.g., A1,A2):")
-    if st.button("Next") and seat_no:
-        st.session_state.seat_no = seat_no
+    st.subheader("Step 3: Select Seats")
+    st.caption("Click on available seats to book (like BookMyShow).")
+
+    rows = ["A","B","C","D","E","F","G","H"]
+    cols = list(range(1, 11))  # 10 seats per row
+
+    selected_seats = []
+    for r in rows:
+        cols_selected = []
+        for c in cols:
+            seat_id = f"{r}{c}"
+            if seat_id in st.session_state.blockchain.booked_seats:
+                st.button(seat_id, key=seat_id, disabled=True)
+            else:
+                if st.checkbox(seat_id, key=seat_id):
+                    cols_selected.append(seat_id)
+        if cols_selected:
+            selected_seats.extend(cols_selected)
+
+    if st.button("Next") and selected_seats:
+        st.session_state.seat_no = selected_seats
+        st.session_state.num_seats = len(selected_seats)
         st.session_state.step = 4
         st.rerun()
 
@@ -160,8 +176,9 @@ elif st.session_state.step == 5:
         st.write(f"🎬 **Movie:** {tx['movie']}")
         st.write(f"📅 **Date:** {tx['date']}")
         st.write(f"🕒 **Time:** {tx['time_slot']}")
-        st.write(f"💺 **Seats:** {tx['seat_no']} (x{tx['num_seats']})")
+        st.write(f"💺 **Seats:** {', '.join(tx['seat_no'])} (x{tx['num_seats']})")
         st.write(f"💳 **Payment Mode:** {tx['payment_mode']} (Card ****{tx['card_number']})")
+
     if st.button("Book Another Ticket"):
         st.session_state.step = 1
         st.rerun()
