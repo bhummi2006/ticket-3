@@ -2,16 +2,17 @@ import streamlit as st
 import hashlib
 import json
 import time
-import pandas as pd
+from collections import defaultdict
 
 # -----------------------
 # Blockchain Class
 # -----------------------
 class Blockchain:
-    def _init_(self):
+    def __init__(self):
         self.chain = []
         self.pending_tickets = []
         self.new_block(proof=100, previous_hash="1")  # Genesis block
+        self.ticket_prices = {}  # store ticket cost per event
 
     def new_block(self, proof, previous_hash=None):
         block = {
@@ -25,19 +26,18 @@ class Blockchain:
         self.chain.append(block)
         return block
 
-    def new_ticket(self, student_name, event_name, quantity, cost):
-        ticket_id = hashlib.sha256(
-            f"{student_name}{event_name}{time.time()}".encode()
-        ).hexdigest()[:10]
+    def new_ticket(self, student_name, event_name, cost):
+        ticket_id = hashlib.sha256(f"{student_name}{event_name}{time.time()}".encode()).hexdigest()[:10]
         ticket = {
             "ticket_id": ticket_id,
             "student": student_name,
             "event": event_name,
-            "quantity": quantity,
-            "cost": cost * quantity,
+            "cost": cost,
             "timestamp": time.time(),
         }
         self.pending_tickets.append(ticket)
+        # store cost for reference
+        self.ticket_prices[event_name] = cost
         return ticket
 
     @staticmethod
@@ -55,100 +55,4 @@ class Blockchain:
                 return False
         return True
 
-    def verify_ticket(self, ticket_id):
-        for block in self.chain:
-            for ticket in block["tickets"]:
-                if ticket["ticket_id"] == ticket_id:
-                    return True, ticket, block
-        return False, None, None
-
-    def all_tickets(self):
-        tickets = []
-        for block in self.chain:
-            tickets.extend(block["tickets"])
-        return tickets
-
-
-# -----------------------
-# Streamlit UI
-# -----------------------
-st.set_page_config(page_title="Blockchain Event Ticketing", layout="wide")
-st.title("🎟 Blockchain-based Event Ticketing System")
-
-# Initialize blockchain in session
-if "blockchain" not in st.session_state:
-    st.session_state.blockchain = Blockchain()
-
-blockchain = st.session_state.blockchain
-
-# Event list with costs
-event_costs = {
-    "Dandiya Night": 200,
-    "Painting": 100,
-    "Movie": 150,
-    "Carnival": 250,
-    "DJ Night": 300,
-}
-
-# --- Ticket Purchase ---
-st.header("🎫 Buy a Ticket")
-col1, col2, col3 = st.columns(3)
-with col1:
-    student_name = st.text_input("Enter your name")
-with col2:
-    event_choice = st.selectbox("Select Event", list(event_costs.keys()))
-with col3:
-    quantity = st.number_input("Number of Tickets", min_value=1, step=1, value=1)
-
-if st.button("Buy Ticket"):
-    if student_name and event_choice:
-        cost = event_costs[event_choice]
-        ticket = blockchain.new_ticket(student_name, event_choice, quantity, cost)
-        blockchain.new_block(proof=12345)
-        st.success(
-            f"✅ Ticket Purchased! ID: {ticket['ticket_id']} | Total Cost: ₹{ticket['cost']}"
-        )
-    else:
-        st.warning("Please enter your name and select an event.")
-
-# --- Ticket Verification ---
-st.header("🔍 Verify a Ticket")
-ticket_id_input = st.text_input("Enter Ticket ID to verify")
-
-if st.button("Verify Ticket"):
-    valid, ticket, block = blockchain.verify_ticket(ticket_id_input)
-    if valid:
-        st.success("🎉 Ticket is VALID!")
-        st.json(ticket)
-        st.write("Found in Block:")
-        st.json(block)
-    else:
-        st.error("❌ Ticket not found or invalid.")
-
-# --- Blockchain Explorer ---
-st.header("⛓ Blockchain Explorer")
-for block in blockchain.chain:
-    with st.expander(f"Block {block['index']} | Hash: {blockchain.hash(block)[:15]}..."):
-        st.json(block)
-
-# --- Event Sales Summary ---
-st.header("📊 Event Sales Summary")
-all_tickets = blockchain.all_tickets()
-
-if all_tickets:
-    df = pd.DataFrame(all_tickets)
-    summary = df.groupby("event").agg(
-        total_tickets=("quantity", "sum"),
-        total_sales=("cost", "sum")
-    ).reset_index()
-    st.table(summary)
-else:
-    st.info("No tickets sold yet.")
-
-# --- Chain Validity ---
-st.sidebar.header("Blockchain Status")
-if blockchain.is_chain_valid():
-    st.sidebar.success("✅ Blockchain is valid")
-else:
-    st.sidebar.error("⚠ Blockchain integrity compromised!")
-    
+    def verify_ticket(self, ticket_id)
