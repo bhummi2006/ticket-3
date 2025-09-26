@@ -150,4 +150,5 @@ st.sidebar.header("Blockchain Status")
 if blockchain.is_chain_valid():
     st.sidebar.success("✅ Blockchain is valid")
 else:
-    st.sidebar.error("⚠ Blockchain integrity compromised!")
+    st.sidebar.error("⚠ Blockchain integrity compromised!")
+    
