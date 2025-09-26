@@ -31,9 +31,8 @@ if st.session_state.page == "movies":
         with cols[i]:
             st.image(poster, caption=movie, use_column_width=True)
             if st.button(f"Book {movie}"):
-                st.session_state.ticket_data["Movie"] = movie
+                st.session_state.ticket_data = {"Movie": movie}
                 st.session_state.page = "datetime"
-                st.experimental_rerun()
 
 # ------------------------
 # Page 2: Date & Time
@@ -46,7 +45,6 @@ elif st.session_state.page == "datetime":
         st.session_state.ticket_data["Date"] = str(date)
         st.session_state.ticket_data["Time"] = str(time)
         st.session_state.page = "tickets"
-        st.experimental_rerun()
 
 # ------------------------
 # Page 3: Tickets & Seats
@@ -62,7 +60,6 @@ elif st.session_state.page == "tickets":
             st.session_state.ticket_data["Tickets"] = num_tickets
             st.session_state.ticket_data["Seats"] = ", ".join(seats)
             st.session_state.page = "payment"
-            st.experimental_rerun()
 
 # ------------------------
 # Page 4: Payment
@@ -80,7 +77,6 @@ elif st.session_state.page == "payment":
             st.session_state.ticket_data["Payment Mode"] = mode
             st.session_state.ticket_data["Card Number"] = f"**** **** **** {card_number[-4:]}"
             st.session_state.page = "confirmation"
-            st.experimental_rerun()
 
 # ------------------------
 # Page 5: Confirmation
@@ -93,8 +89,7 @@ elif st.session_state.page == "confirmation":
     for key, value in st.session_state.ticket_data.items():
         st.write(f"**{key}:** {value}")
 
-    # Option to book another ticket
+    # Button to book another ticket
     if st.button("Book Another Ticket"):
         st.session_state.ticket_data = {}
         st.session_state.page = "movies"
-        st.experimental_rerun()
