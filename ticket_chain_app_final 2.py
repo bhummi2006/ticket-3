@@ -6,6 +6,10 @@ from typing import List, Dict, Any
 import requests
 from PIL import Image
 from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+import tempfile
+import base64
 
 # -----------------------
 # Blockchain Class
@@ -91,6 +95,41 @@ def load_image_from_url(url: str):
         return None
 
 # -----------------------
+# Generate PDF Ticket
+# -----------------------
+def generate_ticket_pdf(ticket_data: Dict[str, Any]) -> bytes:
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    c = canvas.Canvas(temp_file.name, pagesize=A4)
+    width, height = A4
+
+    c.setFont("Helvetica-Bold", 20)
+    c.drawCentredString(width / 2, height - 50, "🎟 Blockchain Movie Ticket")
+
+    c.setFont("Helvetica", 14)
+    tx = ticket_data['transaction']
+    details = [
+        f"Ticket ID: {tx['ticket_id']}",
+        f"Buyer: {tx['buyer']}",
+        f"Movie: {tx['movie']}",
+        f"Date: {tx['date']}",
+        f"Time: {tx['time_slot']}",
+        f"Seats: {', '.join(tx['seat_no'])} (x{tx['num_seats']})",
+        f"Payment Mode: {tx['payment_mode']} (****{tx['card_number']})",
+    ]
+
+    y = height - 120
+    for line in details:
+        c.drawString(100, y, line)
+        y -= 30
+
+    c.setFont("Helvetica-Oblique", 12)
+    c.drawCentredString(width / 2, 100, "Thank you for booking with Blockchain Ticketing System")
+
+    c.save()
+    pdf_data = open(temp_file.name, "rb").read()
+    return pdf_data
+
+# -----------------------
 # Streamlit App
 # -----------------------
 st.set_page_config(page_title="Blockchain Movie Ticketing", layout="wide")
@@ -101,7 +140,7 @@ if 'blockchain' not in st.session_state:
 if 'step' not in st.session_state:
     st.session_state.step = 1
 
-# Movie posters (dummy URLs)
+# Dummy posters
 MOVIE_POSTERS = {
     "Inception": "https://via.placeholder.com/600x400.png?text=Inception",
     "Interstellar": "https://via.placeholder.com/600x400.png?text=Interstellar",
@@ -115,7 +154,6 @@ if st.session_state.step == 1:
     movie_choice = st.selectbox("Choose a movie:", list(MOVIE_POSTERS.keys()))
     buyer_name = st.text_input("Enter your name:")
 
-    # Show movie poster
     img = load_image_from_url(MOVIE_POSTERS[movie_choice])
     if img:
         st.image(img, use_column_width=True)
@@ -140,7 +178,6 @@ elif st.session_state.step == 2:
 # Step 3: Seat Selection
 elif st.session_state.step == 3:
     st.subheader("Step 3: Select Seats")
-
     rows = ["A","B","C","D","E","F","G","H"]
     cols = list(range(1, 11))
     all_seats = [f"{r}{c}" for r in rows for c in cols]
@@ -188,7 +225,7 @@ elif st.session_state.step == 4:
         st.session_state.step = 5
         st.rerun()
 
-# Step 5: Ticket Slip
+# Step 5: Ticket Slip + PDF Download
 elif st.session_state.step == 5:
     st.success("✅ Payment Successful! Here’s your ticket slip:")
     ticket_data = st.session_state.blockchain.verify_ticket(st.session_state.ticket_id)
@@ -201,6 +238,12 @@ elif st.session_state.step == 5:
         st.write(f"🕒 **Time:** {tx['time_slot']}")
         st.write(f"💺 **Seats:** {', '.join(tx['seat_no'])} (x{tx['num_seats']})")
         st.write(f"💳 **Payment Mode:** {tx['payment_mode']} (Card ****{tx['card_number']})")
+
+        # Generate PDF
+        pdf_data = generate_ticket_pdf(ticket_data)
+        b64_pdf = base64.b64encode(pdf_data).decode("utf-8")
+        href = f'<a href="data:application/pdf;base64,{b64_pdf}" download="ticket.pdf">📥 Download Ticket (PDF)</a>'
+        st.markdown(href, unsafe_allow_html=True)
 
     if st.button("Book Another"):
         st.session_state.step = 1
