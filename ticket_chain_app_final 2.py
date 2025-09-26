@@ -1,6 +1,6 @@
 import streamlit as st
 import datetime
-import segno
+import qrcode
 from io import BytesIO
 
 # Dummy movie posters
@@ -14,18 +14,18 @@ MOVIES = {
 # Seats
 SEATS = [f"{row}{num}" for row in "ABCDEFGHIJ" for num in range(1, 11)]
 
-# Session state initialization
+# Session state
 if "page" not in st.session_state:
     st.session_state.page = "movies"
 if "ticket_data" not in st.session_state:
     st.session_state.ticket_data = {}
 
-# Function to generate QR code
+# QR generator using qrcode
 def generate_qr_code(data: dict):
     ticket_text = "\n".join([f"{k}: {v}" for k, v in data.items()])
-    qr = segno.make(ticket_text)
+    qr_img = qrcode.make(ticket_text)
     buf = BytesIO()
-    qr.save(buf, kind="png", scale=5)
+    qr_img.save(buf, format="PNG")
     buf.seek(0)
     return buf
 
@@ -57,7 +57,6 @@ elif st.session_state.page == "tickets":
     st.title("🎟 Select Tickets & Seats")
     num_tickets = st.number_input("Number of Tickets", min_value=1, max_value=5, step=1)
     seats = st.multiselect("Choose Seats", SEATS, default=SEATS[:num_tickets])
-
     if st.button("Next"):
         if len(seats) != num_tickets:
             st.error("Please select the same number of seats as tickets.")
@@ -74,7 +73,6 @@ elif st.session_state.page == "payment":
     card_number = st.text_input("Card Number")
     exp_date = st.text_input("Expiry Date (MM/YY)")
     cvv = st.text_input("CVV", type="password")
-
     if st.button("Pay & Generate Ticket"):
         if not card_number or len(card_number) < 4:
             st.error("Please enter a valid card number.")
