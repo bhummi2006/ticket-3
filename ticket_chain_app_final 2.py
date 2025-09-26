@@ -3,6 +3,9 @@ import hashlib
 import json
 import time
 from typing import List, Dict, Any
+import requests
+from PIL import Image
+from io import BytesIO
 
 # -----------------------
 # Blockchain Class
@@ -12,7 +15,7 @@ class Blockchain:
         self.chain: List[Dict[str, Any]] = []
         self.pending_transactions: List[Dict[str, Any]] = []
         self.tickets: Dict[str, int] = {}
-        self.booked_seats: set = set()  # Track booked seats
+        self.booked_seats: set = set()
         self.new_block(proof=100, previous_hash="1")
 
     def new_block(self, proof: int, previous_hash: str = None) -> Dict[str, Any]:
@@ -37,7 +40,6 @@ class Blockchain:
         ticket_id = hashlib.sha256(
             f"{buyer}{movie}{date}{time_slot}{seat_no}{num_seats}{payment_mode}{time.time()}".encode()
         ).hexdigest()
-
         self.pending_transactions.append({
             'buyer': buyer,
             'movie': movie,
@@ -46,7 +48,7 @@ class Blockchain:
             'seat_no': seat_no,
             'num_seats': num_seats,
             'payment_mode': payment_mode,
-            'card_number': card_number[-4:],  # store last 4 digits only
+            'card_number': card_number[-4:],
             'exp_date': exp_date,
             'cvv': "***",
             'ticket_id': ticket_id,
@@ -78,9 +80,20 @@ class Blockchain:
         return {}
 
 # -----------------------
+# Helper: load image from URL
+# -----------------------
+def load_image_from_url(url: str):
+    try:
+        resp = requests.get(url)
+        img = Image.open(BytesIO(resp.content))
+        return img
+    except Exception as e:
+        return None
+
+# -----------------------
 # Streamlit App
 # -----------------------
-st.set_page_config(page_title="Blockchain Movie Ticketing", layout="centered")
+st.set_page_config(page_title="Blockchain Movie Ticketing", layout="wide")
 st.title("🎬 Blockchain-based Movie Ticketing System")
 
 if 'blockchain' not in st.session_state:
@@ -88,60 +101,75 @@ if 'blockchain' not in st.session_state:
 if 'step' not in st.session_state:
     st.session_state.step = 1
 
-# Step 1: Select Movie
+# Map movie → poster image URL (placeholders). You can replace these with real URLs.
+MOVIE_POSTERS = {
+    "Inception": "https://via.placeholder.com/600x400.png?text=Inception",
+    "Interstellar": "https://via.placeholder.com/600x400.png?text=Interstellar",
+    "Avengers: Endgame": "https://via.placeholder.com/600x400.png?text=Avengers+Endgame",
+    "The Dark Knight": "https://via.placeholder.com/600x400.png?text=The+Dark+Knight",
+    "Titanic": "https://via.placeholder.com/600x400.png?text=Titanic"
+}
+
+# Step 1: Movie Selection
 if st.session_state.step == 1:
     st.subheader("Step 1: Select a Movie")
-    movies = ["Inception", "Interstellar", "Avengers: Endgame", "The Dark Knight", "Titanic"]
-    movie_choice = st.selectbox("Choose a movie:", movies)
+    movie_choice = st.selectbox("Choose a movie:", list(MOVIE_POSTERS.keys()))
     buyer_name = st.text_input("Enter your name:")
-    if st.button("Next") and buyer_name and movie_choice:
+
+    # Display poster in the background / side
+    poster_url = MOVIE_POSTERS.get(movie_choice)
+    img = load_image_from_url(poster_url)
+    if img:
+        st.image(img, use_column_width=True)
+
+    if st.button("Next") and buyer_name:
         st.session_state.movie = movie_choice
         st.session_state.buyer = buyer_name
         st.session_state.step = 2
-        st.rerun()
+        st.experimental_rerun()
 
-# Step 2: Date and Time
+# Step 2: Date & Time
 elif st.session_state.step == 2:
-    st.subheader("Step 2: Select Date and Time")
+    st.subheader("Step 2: Select Date & Time")
     date = st.date_input("Select date:")
     time_slot = st.selectbox("Select showtime:", ["12:00 PM", "3:00 PM", "6:00 PM", "9:00 PM"])
     if st.button("Next"):
         st.session_state.date = str(date)
         st.session_state.time_slot = time_slot
         st.session_state.step = 3
-        st.rerun()
+        st.experimental_rerun()
 
-# Step 3: Seat Selection
+# Step 3: Seat Selection (dropdown style)
 elif st.session_state.step == 3:
     st.subheader("Step 3: Select Seats")
-    st.caption("Click on available seats to book (like BookMyShow).")
+    st.caption("Select the seats from dropdowns")
 
+    # generate a list of seat IDs (for example rows A-H and cols 1-10)
     rows = ["A","B","C","D","E","F","G","H"]
-    cols = list(range(1, 11))  # 10 seats per row
+    cols = list(range(1, 11))
+    all_seats = [f"{r}{c}" for r in rows for c in cols]
 
-    selected_seats = []
-    for r in rows:
-        cols_selected = []
-        for c in cols:
-            seat_id = f"{r}{c}"
-            if seat_id in st.session_state.blockchain.booked_seats:
-                st.button(seat_id, key=seat_id, disabled=True)
-            else:
-                if st.checkbox(seat_id, key=seat_id):
-                    cols_selected.append(seat_id)
-        if cols_selected:
-            selected_seats.extend(cols_selected)
+    # filter out already booked
+    available = [s for s in all_seats if s not in st.session_state.blockchain.booked_seats]
+    if not available:
+        st.error("No seats available")
+    else:
+        num_seats = st.selectbox("How many seats?", list(range(1, min(6, len(available)) + 1)))
+        selected_seats = []
+        for i in range(num_seats):
+            sel = st.selectbox(f"Seat #{i+1}", ["--Select--"] + available, key=f"seat_sel_{i}")
+            selected_seats.append(sel)
 
-    if st.button("Next") and selected_seats:
-        st.session_state.seat_no = selected_seats
-        st.session_state.num_seats = len(selected_seats)
-        st.session_state.step = 4
-        st.rerun()
+        if st.button("Next") and all([s != "--Select--" for s in selected_seats]):
+            st.session_state.seat_no = selected_seats
+            st.session_state.num_seats = num_seats
+            st.session_state.step = 4
+            st.experimental_rerun()
 
 # Step 4: Payment
 elif st.session_state.step == 4:
     st.subheader("Step 4: Payment")
-    payment_mode = st.selectbox("Select Payment Mode:", ["Credit Card", "Debit Card"])
+    payment_mode = st.selectbox("Select Payment Mode:", ["Credit Card", "Debit Card", "UPI"])
     card_number = st.text_input("Card Number:")
     exp_date = st.text_input("Expiry Date (MM/YY):")
     cvv = st.text_input("CVV:", type="password")
@@ -163,11 +191,11 @@ elif st.session_state.step == 4:
         blockchain.new_block(proof=123, previous_hash=blockchain.hash(blockchain.last_block()))
         st.session_state.ticket_id = ticket_id
         st.session_state.step = 5
-        st.rerun()
+        st.experimental_rerun()
 
-# Step 5: Ticket Verification Slip
+# Step 5: Ticket Slip
 elif st.session_state.step == 5:
-    st.success("✅ Payment Successful! Here is your ticket slip:")
+    st.success("✅ Payment Successful! Here’s your ticket slip:")
     ticket_data = st.session_state.blockchain.verify_ticket(st.session_state.ticket_id)
     if ticket_data:
         tx = ticket_data['transaction']
@@ -179,6 +207,6 @@ elif st.session_state.step == 5:
         st.write(f"💺 **Seats:** {', '.join(tx['seat_no'])} (x{tx['num_seats']})")
         st.write(f"💳 **Payment Mode:** {tx['payment_mode']} (Card ****{tx['card_number']})")
 
-    if st.button("Book Another Ticket"):
+    if st.button("Book Another"):
         st.session_state.step = 1
-        st.rerun()
+        st.experimental_rerun()
