@@ -1,5 +1,6 @@
 import streamlit as st
 import datetime
+import qrcode
 from io import BytesIO
 
 # Dummy movie posters (URLs)
@@ -19,64 +20,18 @@ if "page" not in st.session_state:
 if "ticket_data" not in st.session_state:
     st.session_state.ticket_data = {}
 
-# ✅ Styled PDF generator
-def generate_ticket_pdf(ticket_info):
-    lines = [
-        "Movie Ticket",
-        "------------------------",
-    ]
-    for key, value in ticket_info.items():
-        lines.append(f"{key}: {value}")
-    lines.append("------------------------")
-    lines.append("Enjoy Your Show! 🍿")
+# ✅ QR generator
+def generate_qr_code(data: dict):
+    ticket_text = "\n".join([f"{k}: {v}" for k, v in data.items()])
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(ticket_text)
+    qr.make(fit=True)
 
-    # PDF content stream
-    content = "BT /F1 16 Tf 200 750 Td (🎟 YOUR MOVIE TICKET 🎟) Tj ET\n"
-    y = 700
-    for line in lines:
-        content += f"BT /F1 12 Tf 100 {y} Td ({line}) Tj ET\n"
-        y -= 25
-
-    # Draw a rectangle box
-    box = "100 690 400 200 re S\n"
-
-    pdf_bytes = f"""%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] 
-   /Contents 4 0 R 
-   /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-4 0 obj
-<< /Length {len(content) + len(box)} >>
-stream
-{content}
-{box}
-endstream
-endobj
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-xref
-0 6
-0000000000 65535 f 
-0000000010 00000 n 
-0000000053 00000 n 
-0000000120 00000 n 
-0000000301 00000 n 
-0000000400 00000 n 
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-480
-%%EOF
-"""
-    return BytesIO(pdf_bytes.encode("latin-1"))
+    img = qr.make_image(fill="black", back_color="white")
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
 
 # Page 1: Movie selection
 if st.session_state.page == "movies":
@@ -129,7 +84,7 @@ elif st.session_state.page == "payment":
         st.session_state.page = "confirmation"
         st.rerun()
 
-# Page 5: Confirmation & Download
+# Page 5: Confirmation & QR Code
 elif st.session_state.page == "confirmation":
     st.title("✅ Booking Confirmed")
     st.success("Your ticket has been booked successfully!")
@@ -138,10 +93,13 @@ elif st.session_state.page == "confirmation":
     for key, value in st.session_state.ticket_data.items():
         st.write(f"**{key}:** {value}")
 
-    pdf_file = generate_ticket_pdf(st.session_state.ticket_data)
+    # Generate QR
+    qr_buf = generate_qr_code(st.session_state.ticket_data)
+    st.image(qr_buf, caption="🎫 Scan this QR at Entry", use_column_width=False)
+
     st.download_button(
-        label="⬇️ Download Ticket (PDF)",
-        data=pdf_file,
-        file_name="movie_ticket.pdf",
-        mime="application/pdf"
+        label="⬇️ Download QR Code",
+        data=qr_buf,
+        file_name="ticket_qr.png",
+        mime="image/png"
     )
