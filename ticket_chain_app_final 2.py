@@ -29,7 +29,7 @@ class Blockchain:
             tid = tx.get('ticket_id')
             if tid:
                 self.tickets[tid] = block['index']
-                key = self._event_seat_key(tx['event_name'], tx.get('seat'))
+                key = self._event_seat_key(tx['movie_name'], tx.get('seat'))
                 if key:
                     self.event_seat_index[key] = tid
 
@@ -37,21 +37,24 @@ class Blockchain:
         self.chain.append(block)
         return block
 
-    def new_transaction(self, buyer_name: str, buyer_email: str, event_name: str, seat: str = None, price: float = 0.0) -> Dict[str, Any]:
+    def new_transaction(self, buyer_name: str, buyer_email: str, movie_name: str, seat: str = None,
+                        no_of_seats: int = 1, price: float = 0.0, payment_mode: str = 'NA') -> Dict[str, Any]:
         if seat:
-            key = self._event_seat_key(event_name, seat)
+            key = self._event_seat_key(movie_name, seat)
             if key in self.event_seat_index:
-                raise ValueError(f"Seat {seat} for event '{event_name}' is already sold")
+                raise ValueError(f"Seat {seat} for movie '{movie_name}' is already sold")
 
-        raw = f"{buyer_name}|{buyer_email}|{event_name}|{seat}|{price}|{time.time()}|{uuid.uuid4()}"
+        raw = f"{buyer_name}|{buyer_email}|{movie_name}|{seat}|{no_of_seats}|{price}|{payment_mode}|{time.time()}|{uuid.uuid4()}"
         ticket_id = hashlib.sha256(raw.encode()).hexdigest()
 
         tx = {
             'buyer_name': buyer_name,
             'buyer_email': buyer_email,
-            'event_name': event_name,
+            'movie_name': movie_name,
             'seat': seat,
+            'no_of_seats': no_of_seats,
             'price': price,
+            'payment_mode': payment_mode,
             'timestamp': time.time(),
             'ticket_id': ticket_id
         }
@@ -96,10 +99,10 @@ class Blockchain:
                 }
         return {}
 
-    def _event_seat_key(self, event_name: str, seat: str) -> str:
+    def _event_seat_key(self, movie_name: str, seat: str) -> str:
         if not seat:
             return ''
-        return f"{event_name.lower()}::seat::{seat.lower()}"
+        return f"{movie_name.lower()}::seat::{seat.lower()}"
 
     def get_chain(self) -> Dict[str, Any]:
         return {'length': len(self.chain), 'chain': self.chain}
@@ -108,7 +111,7 @@ class Blockchain:
 # Streamlit UI
 # -----------------------
 st.set_page_config(page_title='Blockchain Ticketing Demo', layout='wide')
-st.title('🎟️ Blockchain-based Event Ticketing System (Demo)')
+st.title('🎬 Blockchain-based Movie Ticketing System')
 
 if 'blockchain' not in st.session_state:
     st.session_state['blockchain'] = Blockchain()
@@ -118,14 +121,15 @@ blockchain: Blockchain = st.session_state['blockchain']
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.header('Buy Ticket (Simulate Purchase)')
+    st.header('Buy Movie Ticket')
     with st.form('buy_ticket_form'):
         buyer_name = st.text_input('Buyer Name')
         buyer_email = st.text_input('Buyer Email')
-        event_name = st.text_input('Event Name', value='Coldplay Live')
-        event_date = st.date_input('Event Date')
-        seat = st.text_input('Seat (optional)')
-        price = st.number_input('Price (INR)', min_value=0.0, value=999.0)
+        movie_name = st.text_input('Movie Name')
+        seat = st.text_input('Seat Number')
+        no_of_seats = st.number_input('Number of Seats', min_value=1, value=1)
+        price = st.number_input('Total Price (INR)', min_value=0.0, value=500.0)
+        payment_mode = st.selectbox('Mode of Payment', ['Cash', 'Credit Card', 'UPI', 'Net Banking'])
         submitted = st.form_submit_button('Purchase Ticket')
 
         if submitted:
@@ -133,9 +137,11 @@ with col1:
                 tx = blockchain.new_transaction(
                     buyer_name=buyer_name or 'Anonymous',
                     buyer_email=buyer_email or 'anonymous@example.com',
-                    event_name=f"{event_name} - {event_date.isoformat()}",
+                    movie_name=movie_name,
                     seat=seat or None,
-                    price=float(price)
+                    no_of_seats=no_of_seats,
+                    price=float(price),
+                    payment_mode=payment_mode
                 )
 
                 last_proof = blockchain.last_block['proof']
@@ -144,6 +150,7 @@ with col1:
                     blockchain.new_block(proof=new_proof)
 
                 st.success('✅ Ticket purchased!')
+                st.write('**Ticket ID (keep it safe for verification):**')
                 st.code(tx['ticket_id'])
                 st.json(tx)
 
@@ -190,6 +197,3 @@ with col2:
             st.code(f"Previous hash: {b['previous_hash']}")
             st.write('Proof:', b['proof'])
             st.json(b['transactions'])
-
-st.caption('Demo only. In real use, connect to distributed ledger and secure wallets.')
-
