@@ -1,5 +1,14 @@
 import streamlit as st
 import datetime
+from io import BytesIO
+
+# ✅ Try importing reportlab
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
 
 # Dummy movie posters (using URLs from the web)
 MOVIES = {
@@ -9,7 +18,7 @@ MOVIES = {
     "Tenet": "https://m.media-amazon.com/images/I/71niXI3lxlL._AC_SL1024_.jpg"
 }
 
-# Seat options (simple dropdown for demo)
+# Seat options (A1–J10)
 SEATS = [f"{row}{num}" for row in "ABCDEFGHIJ" for num in range(1, 11)]
 
 # Session state
@@ -18,12 +27,25 @@ if "page" not in st.session_state:
 if "ticket_data" not in st.session_state:
     st.session_state.ticket_data = {}
 
-# Function to generate ticket as text file (simulating PDF)
-def generate_ticket_file(ticket_info):
-    content = "🎟 Movie Ticket Confirmation 🎟\n\n"
+# Function to generate ticket PDF
+def generate_ticket_pdf(ticket_info):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    c.setFont("Helvetica-Bold", 20)
+    c.drawCentredString(width / 2, height - 50, "🎟 Movie Ticket 🎟")
+
+    c.setFont("Helvetica", 12)
+    y = height - 100
     for key, value in ticket_info.items():
-        content += f"{key}: {value}\n"
-    return content.encode("utf-8")
+        c.drawString(100, y, f"{key}: {value}")
+        y -= 25
+
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+    return buffer
 
 # Page 1: Movie selection
 if st.session_state.page == "movies":
@@ -74,7 +96,7 @@ elif st.session_state.page == "payment":
         st.session_state.page = "confirmation"
         st.rerun()
 
-# Page 5: Confirmation & Download Ticket
+# Page 5: Confirmation & PDF Download
 elif st.session_state.page == "confirmation":
     st.title("✅ Booking Confirmed")
     st.success("Your ticket has been booked successfully!")
@@ -83,11 +105,13 @@ elif st.session_state.page == "confirmation":
     for key, value in st.session_state.ticket_data.items():
         st.write(f"**{key}:** {value}")
 
-    # Generate downloadable "ticket" file
-    ticket_file = generate_ticket_file(st.session_state.ticket_data)
-    st.download_button(
-        label="⬇️ Download Ticket",
-        data=ticket_file,
-        file_name="movie_ticket.pdf",  # will download as PDF but it's text-based
-        mime="application/pdf"
-    )
+    if REPORTLAB_AVAILABLE:
+        pdf_buffer = generate_ticket_pdf(st.session_state.ticket_data)
+        st.download_button(
+            label="⬇️ Download Ticket (PDF)",
+            data=pdf_buffer,
+            file_name="movie_ticket.pdf",
+            mime="application/pdf"
+        )
+    else:
+        st.error("⚠️ ReportLab is not installed. Please install it with `pip install reportlab` to enable PDF downloads.")
