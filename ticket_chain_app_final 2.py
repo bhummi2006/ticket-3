@@ -1,6 +1,6 @@
 import streamlit as st
 import datetime
-import qrcode
+import segno   # QR code library (lightweight)
 from io import BytesIO
 
 # Dummy movie posters (URLs)
@@ -23,13 +23,9 @@ if "ticket_data" not in st.session_state:
 # ✅ QR generator
 def generate_qr_code(data: dict):
     ticket_text = "\n".join([f"{k}: {v}" for k, v in data.items()])
-    qr = qrcode.QRCode(version=1, box_size=10, border=5)
-    qr.add_data(ticket_text)
-    qr.make(fit=True)
-
-    img = qr.make_image(fill="black", back_color="white")
+    qr = segno.make(ticket_text)
     buf = BytesIO()
-    img.save(buf, format="PNG")
+    qr.save(buf, kind="png", scale=5)
     buf.seek(0)
     return buf
 
