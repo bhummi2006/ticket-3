@@ -1,5 +1,4 @@
 import streamlit as st
-from fpdf import FPDF
 import datetime
 
 # Dummy movie posters (using URLs from the web)
@@ -19,20 +18,12 @@ if "page" not in st.session_state:
 if "ticket_data" not in st.session_state:
     st.session_state.ticket_data = {}
 
-# PDF Generator
-def generate_ticket_pdf(ticket_info):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=16)
-    pdf.cell(200, 10, txt="🎟 Movie Ticket", ln=True, align="C")
-
-    pdf.set_font("Arial", size=12)
+# Function to generate ticket as text file (simulating PDF)
+def generate_ticket_file(ticket_info):
+    content = "🎟 Movie Ticket Confirmation 🎟\n\n"
     for key, value in ticket_info.items():
-        pdf.cell(200, 10, txt=f"{key}: {value}", ln=True, align="L")
-
-    filename = "movie_ticket.pdf"
-    pdf.output(filename)
-    return filename
+        content += f"{key}: {value}\n"
+    return content.encode("utf-8")
 
 # Page 1: Movie selection
 if st.session_state.page == "movies":
@@ -83,7 +74,7 @@ elif st.session_state.page == "payment":
         st.session_state.page = "confirmation"
         st.rerun()
 
-# Page 5: Confirmation & PDF Download
+# Page 5: Confirmation & Download Ticket
 elif st.session_state.page == "confirmation":
     st.title("✅ Booking Confirmed")
     st.success("Your ticket has been booked successfully!")
@@ -92,7 +83,11 @@ elif st.session_state.page == "confirmation":
     for key, value in st.session_state.ticket_data.items():
         st.write(f"**{key}:** {value}")
 
-    # Generate PDF
-    filename = generate_ticket_pdf(st.session_state.ticket_data)
-    with open(filename, "rb") as f:
-        st.download_button("⬇️ Download Ticket (PDF)", f, file_name=filename, mime="application/pdf")
+    # Generate downloadable "ticket" file
+    ticket_file = generate_ticket_file(st.session_state.ticket_data)
+    st.download_button(
+        label="⬇️ Download Ticket",
+        data=ticket_file,
+        file_name="movie_ticket.pdf",  # will download as PDF but it's text-based
+        mime="application/pdf"
+    )
