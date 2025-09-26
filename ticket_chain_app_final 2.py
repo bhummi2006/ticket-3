@@ -1,6 +1,6 @@
 import streamlit as st
 import datetime
-import segno   # QR code library (lightweight)
+import segno  # QR code library (lightweight)
 from io import BytesIO
 
 # Dummy movie posters (URLs)
@@ -39,7 +39,7 @@ if st.session_state.page == "movies":
             if st.button(f"Book {movie}"):
                 st.session_state.ticket_data["Movie"] = movie
                 st.session_state.page = "datetime"
-                st.rerun()
+                st.experimental_rerun()
 
 # Page 2: Date & Time
 elif st.session_state.page == "datetime":
@@ -50,19 +50,18 @@ elif st.session_state.page == "datetime":
         st.session_state.ticket_data["Date"] = str(date)
         st.session_state.ticket_data["Time"] = str(time)
         st.session_state.page = "tickets"
-        st.rerun()
+        st.experimental_rerun()
 
 # Page 3: Tickets & Seats
 elif st.session_state.page == "tickets":
     st.title("🎟 Select Tickets & Seats")
     num_tickets = st.number_input("Number of Tickets", min_value=1, max_value=5, step=1)
     seats = st.multiselect("Choose Seats", SEATS, default=SEATS[:num_tickets])
-
     if st.button("Next"):
         st.session_state.ticket_data["Tickets"] = num_tickets
         st.session_state.ticket_data["Seats"] = ", ".join(seats)
         st.session_state.page = "payment"
-        st.rerun()
+        st.experimental_rerun()
 
 # Page 4: Payment
 elif st.session_state.page == "payment":
@@ -71,14 +70,13 @@ elif st.session_state.page == "payment":
     card_number = st.text_input("Card Number")
     exp_date = st.text_input("Expiry Date (MM/YY)")
     cvv = st.text_input("CVV", type="password")
-
     if st.button("Pay & Generate Ticket"):
         st.session_state.ticket_data["Payment Mode"] = mode
         st.session_state.ticket_data["Card Number"] = (
             f"**** **** **** {card_number[-4:]}" if card_number else "N/A"
         )
         st.session_state.page = "confirmation"
-        st.rerun()
+        st.experimental_rerun()
 
 # Page 5: Confirmation & QR Code
 elif st.session_state.page == "confirmation":
@@ -93,6 +91,8 @@ elif st.session_state.page == "confirmation":
     qr_buf = generate_qr_code(st.session_state.ticket_data)
     st.image(qr_buf, caption="🎫 Scan this QR at Entry", use_column_width=False)
 
+    # Reset buffer position before download
+    qr_buf.seek(0)
     st.download_button(
         label="⬇️ Download QR Code",
         data=qr_buf,
