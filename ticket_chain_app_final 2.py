@@ -19,15 +19,64 @@ if "page" not in st.session_state:
 if "ticket_data" not in st.session_state:
     st.session_state.ticket_data = {}
 
-# Function to generate "PDF" (actually plain text but downloadable as PDF)
+# ✅ Styled PDF generator
 def generate_ticket_pdf(ticket_info):
-    content = "🎟 Movie Ticket 🎟\n\n"
+    lines = [
+        "Movie Ticket",
+        "------------------------",
+    ]
     for key, value in ticket_info.items():
-        content += f"{key}: {value}\n"
+        lines.append(f"{key}: {value}")
+    lines.append("------------------------")
+    lines.append("Enjoy Your Show! 🍿")
 
-    # Encode into BytesIO
-    pdf_bytes = BytesIO(content.encode("utf-8"))
-    return pdf_bytes
+    # PDF content stream
+    content = "BT /F1 16 Tf 200 750 Td (🎟 YOUR MOVIE TICKET 🎟) Tj ET\n"
+    y = 700
+    for line in lines:
+        content += f"BT /F1 12 Tf 100 {y} Td ({line}) Tj ET\n"
+        y -= 25
+
+    # Draw a rectangle box
+    box = "100 690 400 200 re S\n"
+
+    pdf_bytes = f"""%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] 
+   /Contents 4 0 R 
+   /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length {len(content) + len(box)} >>
+stream
+{content}
+{box}
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000010 00000 n 
+0000000053 00000 n 
+0000000120 00000 n 
+0000000301 00000 n 
+0000000400 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+480
+%%EOF
+"""
+    return BytesIO(pdf_bytes.encode("latin-1"))
 
 # Page 1: Movie selection
 if st.session_state.page == "movies":
@@ -89,7 +138,6 @@ elif st.session_state.page == "confirmation":
     for key, value in st.session_state.ticket_data.items():
         st.write(f"**{key}:** {value}")
 
-    # Generate text-based "PDF"
     pdf_file = generate_ticket_pdf(st.session_state.ticket_data)
     st.download_button(
         label="⬇️ Download Ticket (PDF)",
