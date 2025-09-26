@@ -3,7 +3,9 @@ import datetime
 import qrcode
 from io import BytesIO
 
-# Dummy movie posters
+# ------------------------
+# Movie Data
+# ------------------------
 MOVIES = {
     "Inception": "https://m.media-amazon.com/images/I/51zUbui+gbL._AC_.jpg",
     "Interstellar": "https://m.media-amazon.com/images/I/91kFYg4fX3L._AC_SL1500_.jpg",
@@ -11,16 +13,19 @@ MOVIES = {
     "Tenet": "https://m.media-amazon.com/images/I/71niXI3lxlL._AC_SL1024_.jpg"
 }
 
-# Seats
 SEATS = [f"{row}{num}" for row in "ABCDEFGHIJ" for num in range(1, 11)]
 
-# Session state
+# ------------------------
+# Session State
+# ------------------------
 if "page" not in st.session_state:
     st.session_state.page = "movies"
 if "ticket_data" not in st.session_state:
     st.session_state.ticket_data = {}
 
-# QR generator using qrcode
+# ------------------------
+# QR Code Generator
+# ------------------------
 def generate_qr_code(data: dict):
     ticket_text = "\n".join([f"{k}: {v}" for k, v in data.items()])
     qr_img = qrcode.make(ticket_text)
@@ -29,7 +34,9 @@ def generate_qr_code(data: dict):
     buf.seek(0)
     return buf
 
+# ------------------------
 # Page 1: Movie Selection
+# ------------------------
 if st.session_state.page == "movies":
     st.title("🎬 Select Your Movie")
     cols = st.columns(len(MOVIES))
@@ -41,7 +48,9 @@ if st.session_state.page == "movies":
                 st.session_state.page = "datetime"
                 st.experimental_rerun()
 
+# ------------------------
 # Page 2: Date & Time
+# ------------------------
 elif st.session_state.page == "datetime":
     st.title("📅 Select Date & Time")
     date = st.date_input("Choose Date", datetime.date.today())
@@ -52,7 +61,9 @@ elif st.session_state.page == "datetime":
         st.session_state.page = "tickets"
         st.experimental_rerun()
 
+# ------------------------
 # Page 3: Tickets & Seats
+# ------------------------
 elif st.session_state.page == "tickets":
     st.title("🎟 Select Tickets & Seats")
     num_tickets = st.number_input("Number of Tickets", min_value=1, max_value=5, step=1)
@@ -66,7 +77,9 @@ elif st.session_state.page == "tickets":
             st.session_state.page = "payment"
             st.experimental_rerun()
 
+# ------------------------
 # Page 4: Payment
+# ------------------------
 elif st.session_state.page == "payment":
     st.title("💳 Payment Details")
     mode = st.selectbox("Payment Mode", ["Credit Card", "Debit Card", "UPI"])
@@ -82,7 +95,9 @@ elif st.session_state.page == "payment":
             st.session_state.page = "confirmation"
             st.experimental_rerun()
 
+# ------------------------
 # Page 5: Confirmation & QR Code
+# ------------------------
 elif st.session_state.page == "confirmation":
     st.title("✅ Booking Confirmed")
     st.success("Your ticket has been booked successfully!")
