@@ -1,7 +1,8 @@
 import streamlit as st
 import datetime
+from io import BytesIO
 
-# Dummy movie posters (using URLs from the web)
+# Dummy movie posters (URLs)
 MOVIES = {
     "Inception": "https://m.media-amazon.com/images/I/51zUbui+gbL._AC_.jpg",
     "Interstellar": "https://m.media-amazon.com/images/I/91kFYg4fX3L._AC_SL1500_.jpg",
@@ -9,7 +10,7 @@ MOVIES = {
     "Tenet": "https://m.media-amazon.com/images/I/71niXI3lxlL._AC_SL1024_.jpg"
 }
 
-# Seat options (A1–J10)
+# Seats
 SEATS = [f"{row}{num}" for row in "ABCDEFGHIJ" for num in range(1, 11)]
 
 # Session state
@@ -18,51 +19,15 @@ if "page" not in st.session_state:
 if "ticket_data" not in st.session_state:
     st.session_state.ticket_data = {}
 
-# Function to create a styled HTML ticket
-def generate_ticket_html(ticket_info):
-    html = f"""
-    <html>
-    <head>
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                background-color: #f4f4f4;
-                padding: 20px;
-            }}
-            .ticket {{
-                background: white;
-                border: 2px dashed #444;
-                border-radius: 10px;
-                padding: 20px;
-                width: 500px;
-                margin: auto;
-            }}
-            h2 {{
-                text-align: center;
-                color: #e50914;
-            }}
-            p {{
-                font-size: 14px;
-                margin: 6px 0;
-            }}
-            .footer {{
-                margin-top: 20px;
-                text-align: center;
-                font-size: 12px;
-                color: gray;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="ticket">
-            <h2>🎟 Movie Ticket 🎟</h2>
-            {''.join([f"<p><b>{k}:</b> {v}</p>" for k, v in ticket_info.items()])}
-            <div class="footer">Thank you for booking with Streamlit Movies!</div>
-        </div>
-    </body>
-    </html>
-    """
-    return html.encode("utf-8")
+# Function to generate "PDF" (actually plain text but downloadable as PDF)
+def generate_ticket_pdf(ticket_info):
+    content = "🎟 Movie Ticket 🎟\n\n"
+    for key, value in ticket_info.items():
+        content += f"{key}: {value}\n"
+
+    # Encode into BytesIO
+    pdf_bytes = BytesIO(content.encode("utf-8"))
+    return pdf_bytes
 
 # Page 1: Movie selection
 if st.session_state.page == "movies":
@@ -87,7 +52,7 @@ elif st.session_state.page == "datetime":
         st.session_state.page = "tickets"
         st.rerun()
 
-# Page 3: Number of Tickets & Seats
+# Page 3: Tickets & Seats
 elif st.session_state.page == "tickets":
     st.title("🎟 Select Tickets & Seats")
     num_tickets = st.number_input("Number of Tickets", min_value=1, max_value=5, step=1)
@@ -109,11 +74,13 @@ elif st.session_state.page == "payment":
 
     if st.button("Pay & Generate Ticket"):
         st.session_state.ticket_data["Payment Mode"] = mode
-        st.session_state.ticket_data["Card Number"] = f"**** **** **** {card_number[-4:]}" if card_number else "N/A"
+        st.session_state.ticket_data["Card Number"] = (
+            f"**** **** **** {card_number[-4:]}" if card_number else "N/A"
+        )
         st.session_state.page = "confirmation"
         st.rerun()
 
-# Page 5: Confirmation & Download Ticket
+# Page 5: Confirmation & Download
 elif st.session_state.page == "confirmation":
     st.title("✅ Booking Confirmed")
     st.success("Your ticket has been booked successfully!")
@@ -122,11 +89,11 @@ elif st.session_state.page == "confirmation":
     for key, value in st.session_state.ticket_data.items():
         st.write(f"**{key}:** {value}")
 
-    # Generate styled ticket file
-    ticket_file = generate_ticket_html(st.session_state.ticket_data)
+    # Generate text-based "PDF"
+    pdf_file = generate_ticket_pdf(st.session_state.ticket_data)
     st.download_button(
-        label="⬇️ Download Ticket (Styled PDF)",
-        data=ticket_file,
+        label="⬇️ Download Ticket (PDF)",
+        data=pdf_file,
         file_name="movie_ticket.pdf",
         mime="application/pdf"
     )
