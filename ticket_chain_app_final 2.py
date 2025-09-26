@@ -55,4 +55,5 @@ class Blockchain:
                 return False
         return True
 
-    def verify_ticket(self, ticket_id)
+    def verify_ticket(self, ticket_id):
+    
