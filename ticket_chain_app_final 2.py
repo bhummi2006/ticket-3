@@ -56,4 +56,19 @@ class Blockchain:
         return True
 
     def verify_ticket(self, ticket_id):
+         """Return ticket details if valid, otherwise empty dict."""
+    idx = self.tickets.get(ticket_id)
+    if not idx:
+        return {}
+    block = self.chain[idx - 1]
+    for tx in block['transactions']:
+        if tx.get('ticket_id') == ticket_id:
+            return {
+                'valid': True,
+                'block_index': block['index'],
+                'block_hash': self.hash(block),
+                'transaction': tx,
+                'block_timestamp': block['timestamp']
+            }
+    return {}
     
