@@ -1,14 +1,5 @@
 import streamlit as st
 import datetime
-from io import BytesIO
-
-# ✅ Try importing reportlab
-try:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.pdfgen import canvas
-    REPORTLAB_AVAILABLE = True
-except ImportError:
-    REPORTLAB_AVAILABLE = False
 
 # Dummy movie posters (using URLs from the web)
 MOVIES = {
@@ -27,25 +18,51 @@ if "page" not in st.session_state:
 if "ticket_data" not in st.session_state:
     st.session_state.ticket_data = {}
 
-# Function to generate ticket PDF
-def generate_ticket_pdf(ticket_info):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-
-    c.setFont("Helvetica-Bold", 20)
-    c.drawCentredString(width / 2, height - 50, "🎟 Movie Ticket 🎟")
-
-    c.setFont("Helvetica", 12)
-    y = height - 100
-    for key, value in ticket_info.items():
-        c.drawString(100, y, f"{key}: {value}")
-        y -= 25
-
-    c.showPage()
-    c.save()
-    buffer.seek(0)
-    return buffer
+# Function to create a styled HTML ticket
+def generate_ticket_html(ticket_info):
+    html = f"""
+    <html>
+    <head>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                background-color: #f4f4f4;
+                padding: 20px;
+            }}
+            .ticket {{
+                background: white;
+                border: 2px dashed #444;
+                border-radius: 10px;
+                padding: 20px;
+                width: 500px;
+                margin: auto;
+            }}
+            h2 {{
+                text-align: center;
+                color: #e50914;
+            }}
+            p {{
+                font-size: 14px;
+                margin: 6px 0;
+            }}
+            .footer {{
+                margin-top: 20px;
+                text-align: center;
+                font-size: 12px;
+                color: gray;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="ticket">
+            <h2>🎟 Movie Ticket 🎟</h2>
+            {''.join([f"<p><b>{k}:</b> {v}</p>" for k, v in ticket_info.items()])}
+            <div class="footer">Thank you for booking with Streamlit Movies!</div>
+        </div>
+    </body>
+    </html>
+    """
+    return html.encode("utf-8")
 
 # Page 1: Movie selection
 if st.session_state.page == "movies":
@@ -96,7 +113,7 @@ elif st.session_state.page == "payment":
         st.session_state.page = "confirmation"
         st.rerun()
 
-# Page 5: Confirmation & PDF Download
+# Page 5: Confirmation & Download Ticket
 elif st.session_state.page == "confirmation":
     st.title("✅ Booking Confirmed")
     st.success("Your ticket has been booked successfully!")
@@ -105,13 +122,11 @@ elif st.session_state.page == "confirmation":
     for key, value in st.session_state.ticket_data.items():
         st.write(f"**{key}:** {value}")
 
-    if REPORTLAB_AVAILABLE:
-        pdf_buffer = generate_ticket_pdf(st.session_state.ticket_data)
-        st.download_button(
-            label="⬇️ Download Ticket (PDF)",
-            data=pdf_buffer,
-            file_name="movie_ticket.pdf",
-            mime="application/pdf"
-        )
-    else:
-        st.error("⚠️ ReportLab is not installed. Please install it with `pip install reportlab` to enable PDF downloads.")
+    # Generate styled ticket file
+    ticket_file = generate_ticket_html(st.session_state.ticket_data)
+    st.download_button(
+        label="⬇️ Download Ticket (Styled PDF)",
+        data=ticket_file,
+        file_name="movie_ticket.pdf",
+        mime="application/pdf"
+    )
