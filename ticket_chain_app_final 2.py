@@ -1,7 +1,5 @@
 import streamlit as st
 import datetime
-import qrcode
-from io import BytesIO
 
 # ------------------------
 # Movie Data
@@ -22,17 +20,6 @@ if "page" not in st.session_state:
     st.session_state.page = "movies"
 if "ticket_data" not in st.session_state:
     st.session_state.ticket_data = {}
-
-# ------------------------
-# QR Code Generator
-# ------------------------
-def generate_qr_code(data: dict):
-    ticket_text = "\n".join([f"{k}: {v}" for k, v in data.items()])
-    qr_img = qrcode.make(ticket_text)
-    buf = BytesIO()
-    qr_img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
 
 # ------------------------
 # Page 1: Movie Selection
@@ -86,7 +73,7 @@ elif st.session_state.page == "payment":
     card_number = st.text_input("Card Number")
     exp_date = st.text_input("Expiry Date (MM/YY)")
     cvv = st.text_input("CVV", type="password")
-    if st.button("Pay & Generate Ticket"):
+    if st.button("Pay & Confirm Ticket"):
         if not card_number or len(card_number) < 4:
             st.error("Please enter a valid card number.")
         else:
@@ -96,7 +83,7 @@ elif st.session_state.page == "payment":
             st.experimental_rerun()
 
 # ------------------------
-# Page 5: Confirmation & QR Code
+# Page 5: Confirmation
 # ------------------------
 elif st.session_state.page == "confirmation":
     st.title("✅ Booking Confirmed")
@@ -106,13 +93,8 @@ elif st.session_state.page == "confirmation":
     for key, value in st.session_state.ticket_data.items():
         st.write(f"**{key}:** {value}")
 
-    qr_buf = generate_qr_code(st.session_state.ticket_data)
-    st.image(qr_buf, caption="🎫 Scan this QR at Entry", use_column_width=False)
-
-    qr_buf.seek(0)
-    st.download_button(
-        label="⬇️ Download QR Code",
-        data=qr_buf,
-        file_name="ticket_qr.png",
-        mime="image/png"
-    )
+    # Option to book another ticket
+    if st.button("Book Another Ticket"):
+        st.session_state.ticket_data = {}
+        st.session_state.page = "movies"
+        st.experimental_rerun()
