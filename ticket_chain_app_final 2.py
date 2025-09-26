@@ -70,5 +70,3 @@ class Blockchain:
                 'transaction': tx,
                 'block_timestamp': block['timestamp']
             }
-    return {}
-    
